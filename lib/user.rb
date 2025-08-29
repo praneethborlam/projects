@@ -1,4 +1,6 @@
 require_relative  'services/authentication_service'
+require_relative  'services/notification_service'
+
 class User
   attr_accessor :id, :email, :password, :role, :phone_number, :avatar_url
   attr_accessor :auth_token, :token_expires_at, :last_login_at, :login_count
@@ -30,26 +32,17 @@ class User
     authentication_service.track_login
   end
   
-  # Email/Notification concerns - violates SRP
+  # Notifications service
   def send_welcome_email
-    puts "Sending welcome email to #{@email}"
+    notification_service.send_welcome_email
   end
   
   def send_password_reset_email
-    puts "Sending password reset email to #{@email}"
+    notification_service.send_password_reset_email
   end
   
   def send_notification(type, message)
-    case type
-    when :email
-      puts "EMAIL to #{@email}: #{message}"
-    when :sms
-      puts "SMS to #{@phone_number}: #{message}"
-    when :push
-      puts "PUSH notification: #{message}"
-    else
-      puts "Unknown notification type: #{type}"
-    end
+    notification_service.send_notification(type, message)
   end
   
   # Profile management - violates SRP
@@ -117,6 +110,10 @@ class User
     @authentication_service ||= AuthenticationService.new(self)
   end
   
+  def notification_service
+    @notification_service ||= NotificationService.new(self)
+  end
+  
   def calculate_activity_score
     (@login_count * 0.5).round(2)
   end
@@ -129,15 +126,15 @@ end
 # Example usage
 if __FILE__ == $0
   user = User.new(id: 1, email: "john@example.com", password: "password123")
+  user.phone_number = "123-456-7890"
   
-  puts "Authentication Service Test"
-  puts "Valid password: #{user.authenticate('password123')}"
-  puts "Invalid password: #{user.authenticate('wrong')}"
+  puts "=== Notification Service Test ==="
+  user.send_welcome_email
+  user.send_notification(:email, "Hello via email!")
+  user.send_notification(:sms, "Hello via SMS!")
+  user.send_notification(:push, "Hello via push!")
   
-  user.generate_auth_token
-  puts "Token valid: #{user.token_valid?}"
-  
-  user.track_login
-  user.track_login
-  puts user.generate_analytics_report
+  # Test broadcast
+  puts "\n=== Broadcast Test ==="
+  user.send_notification(:email, "This will be broadcast")
 end
