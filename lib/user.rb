@@ -1,5 +1,4 @@
-require 'digest'
-
+require_relative  'services/authentication_service'
 class User
   attr_accessor :id, :email, :password, :role, :phone_number, :avatar_url
   attr_accessor :auth_token, :token_expires_at, :last_login_at, :login_count
@@ -7,29 +6,28 @@ class User
   def initialize(id:, email:, password:, role: 'user')
     @id = id
     @email = email
-    @password = password
+    @password = PasswordHasher.hash(password) # Hash password on creation
     @role = role
     @login_count = 0
     @phone_number = nil
     @avatar_url = nil
   end
   
-  # Authentication concerns - violates SRP
+  # authentication service
   def authenticate(password)
-    hash_password(password) == @password
+    authentication_service.authenticate(password)
   end
   
   def generate_auth_token
-    @auth_token = generate_random_token
-    @token_expires_at = Time.now + (24 * 60 * 60) # 24 hours
+    authentication_service.generate_auth_token
   end
   
   def token_valid?
-    @auth_token && @token_expires_at > Time.now
+    authentication_service.token_valid?
   end
   
-  def hash_password(password)
-    Digest::SHA256.hexdigest(password + 'salt')
+  def track_login
+    authentication_service.track_login
   end
   
   # Email/Notification concerns - violates SRP
@@ -88,12 +86,6 @@ class User
   end
   
   # Analytics and tracking - violates SRP
-  def track_login
-    @last_login_at = Time.now
-    @login_count += 1
-    puts "Login tracked for user #{@id}. Total logins: #{@login_count}"
-  end
-  
   def generate_analytics_report
     {
       total_logins: @login_count,
@@ -121,8 +113,8 @@ class User
   
   private
   
-  def generate_random_token
-    (0...32).map { ('a'..'z').to_a[rand(26)] }.join
+  def authentication_service
+    @authentication_service ||= AuthenticationService.new(self)
   end
   
   def calculate_activity_score
@@ -132,4 +124,20 @@ class User
   def admin?
     @role == 'admin'
   end
+end
+
+# Example usage
+if __FILE__ == $0
+  user = User.new(id: 1, email: "john@example.com", password: "password123")
+  
+  puts "Authentication Service Test"
+  puts "Valid password: #{user.authenticate('password123')}"
+  puts "Invalid password: #{user.authenticate('wrong')}"
+  
+  user.generate_auth_token
+  puts "Token valid: #{user.token_valid?}"
+  
+  user.track_login
+  user.track_login
+  puts user.generate_analytics_report
 end
